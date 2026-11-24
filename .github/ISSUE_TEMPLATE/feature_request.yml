@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a new resource, data source, or behaviour.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement. The more concrete this request is, the easier it is to land.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: |
+        What you'd like the provider to do. If you're proposing a new resource or attribute, sketch the schema in a `terraform` block.
+      render: terraform
+    validations:
+      required: true

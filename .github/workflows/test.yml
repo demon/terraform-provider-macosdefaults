@@ -1,0 +1,194 @@
+# Terraform Provider testing workflow.
+name: Tests
+
+on:
+  pull_request:
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "examples/**"
+  push:
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "examples/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - run: go mod download
+      - run: go build -v .
+      - name: Run linters
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  generate:
+    name: Check generated docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+      - run: make generate
+      - name: git diff
+        run: |
+          git diff --compact-summary --exit-code || \
+            (echo; echo "Unexpected difference in directories after code generation. Run 'make generate' command and commit."; exit 1)
+
+  unit:
+    name: Unit tests (${{ matrix.cli }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cli: [terraform, tofu]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      # Resource tests drive the real CLI against an in-memory fake of
+      # defaults, so they need terraform or tofu but not macOS.
+      - uses: hashicorp/setup-terraform@v4
+        if: ${{ matrix.cli == 'terraform' }}
+        with:
+          terraform_wrapper: false
+      - uses: opentofu/setup-opentofu@v2
+        if: ${{ matrix.cli == 'tofu' }}
+        with:
+          tofu_wrapper: false
+      # Point terraform-plugin-testing at the CLI explicitly. Without this it
+      # looks for `terraform` on PATH and downloads Terraform if it's missing,
+      # so a tofu job would quietly test Terraform instead.
+      - name: Select ${{ matrix.cli }} for tests
+        run: |
+          cli="$(command -v ${{ matrix.cli }})"
+          echo "TF_ACC_TERRAFORM_PATH=$cli" >> "$GITHUB_ENV"
+          if [ "${{ matrix.cli }}" = tofu ]; then
+            # By default the test framework reattaches the provider as both
+            # registry.terraform.io/-/<name> and .../hashicorp/<name>. OpenTofu
+            # rejects the "-" namespace outside registry.opentofu.org and
+            # resolves unqualified providers there, so give it that address.
+            echo "TF_ACC_PROVIDER_NAMESPACE=hashicorp" >> "$GITHUB_ENV"
+            echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+          fi
+          "$cli" version
+      - run: go mod download
+      - run: go test -v -cover ./...
+
+  acceptance:
+    name: Acceptance tests (macOS, ${{ matrix.scope }}, ${{ matrix.cli }})
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Runs every acceptance test, on both CLIs since this is where the
+          # full lifecycle, drift, and data source coverage lives. The
+          # current_host and system tests skip themselves here and are covered
+          # by the jobs below.
+          - scope: user
+            cli: terraform
+            run: ""
+          - scope: user
+            cli: tofu
+            run: ""
+          # Scope handling lives in the provider, not the CLI, so the
+          # remaining scopes run on one CLI only.
+          # Opt-in tests that write to the runner's ByHost preferences.
+          - scope: current_host
+            cli: terraform
+            run: "^TestAcc.*CurrentHost"
+            strict: true
+          # Must run as root, where the user-scope tests refuse to run, so
+          # this group runs on its own under sudo.
+          - scope: system
+            cli: terraform
+            run: "^TestAccSystem"
+            root: true
+            strict: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: hashicorp/setup-terraform@v4
+        if: ${{ matrix.cli == 'terraform' }}
+        with:
+          terraform_wrapper: false
+      - uses: opentofu/setup-opentofu@v2
+        if: ${{ matrix.cli == 'tofu' }}
+        with:
+          tofu_wrapper: false
+      # Point terraform-plugin-testing at the CLI explicitly. Without this it
+      # looks for `terraform` on PATH and downloads Terraform if it's missing,
+      # so a tofu job would quietly test Terraform instead.
+      - name: Select ${{ matrix.cli }} for tests
+        run: |
+          cli="$(command -v ${{ matrix.cli }})"
+          echo "TF_ACC_TERRAFORM_PATH=$cli" >> "$GITHUB_ENV"
+          if [ "${{ matrix.cli }}" = tofu ]; then
+            # See the unit job: OpenTofu needs the provider reattached under
+            # registry.opentofu.org/hashicorp.
+            echo "TF_ACC_PROVIDER_NAMESPACE=hashicorp" >> "$GITHUB_ENV"
+            echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+          fi
+          "$cli" version
+      - run: go mod download
+
+      - name: Run acceptance tests
+        if: ${{ !matrix.root }}
+        run: go test -v -cover -run '${{ matrix.run }}' ./internal/... | tee "$RUNNER_TEMP/test.log"
+        env:
+          TF_ACC: "1"
+          MACOSDEFAULTS_TEST_CURRENT_HOST: ${{ matrix.scope == 'current_host' && '1' || '' }}
+
+      # Build as the runner user so the Go caches stay runner-owned, then run
+      # only the test binary as root, with root's own HOME.
+      - name: Build test binary
+        if: ${{ matrix.root }}
+        run: go test -c -o "$RUNNER_TEMP/provider.test" ./internal/provider
+      - name: Run acceptance tests as root
+        if: ${{ matrix.root }}
+        working-directory: internal/provider
+        run: |
+          sudo env PATH="$PATH" HOME=/var/root TF_ACC_TERRAFORM_PATH="$TF_ACC_TERRAFORM_PATH" \
+            TF_ACC_PROVIDER_NAMESPACE="${TF_ACC_PROVIDER_NAMESPACE:-}" TF_ACC_PROVIDER_HOST="${TF_ACC_PROVIDER_HOST:-}" \
+            TF_ACC=1 MACOSDEFAULTS_TEST_SYSTEM=1 \
+            "$RUNNER_TEMP/provider.test" -test.v -test.run '${{ matrix.run }}' | tee "$RUNNER_TEMP/test.log"
+
+      # The scope-specific tests skip themselves when their preconditions
+      # aren't met, which would otherwise pass silently.
+      - name: Check no ${{ matrix.scope }} tests were skipped
+        if: ${{ matrix.strict }}
+        run: |
+          if grep -- '--- SKIP' "$RUNNER_TEMP/test.log"; then
+            echo "::error::${{ matrix.scope }} acceptance tests were skipped"
+            exit 1
+          fi
+          if ! grep -q -- '--- PASS: TestAcc' "$RUNNER_TEMP/test.log"; then
+            echo "::error::no ${{ matrix.scope }} acceptance tests ran"
+            exit 1
+          fi

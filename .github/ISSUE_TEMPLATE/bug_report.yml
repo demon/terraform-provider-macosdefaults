@@ -1,0 +1,60 @@
+name: Bug report
+description: A resource or data source isn't behaving as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Filling this out completely makes it dramatically more likely your bug gets fixed quickly.
+
+        **If you suspect a security issue, do NOT file it here — see [SECURITY.md](https://github.com/demon/terraform-provider-macosdefaults/blob/main/SECURITY.md).**
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      description: Output of `terraform version` or the `version` in your `required_providers` block.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: terraform-version
+    attributes:
+      label: Terraform / OpenTofu version
+      placeholder: "Terraform v1.9.5 (or OpenTofu v1.8.2)"
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: Output of `sw_vers -productVersion`, and whether Terraform ran as root.
+      placeholder: "26.1, not root"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you observe instead?
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal terraform configuration
+      description: A configuration that reproduces the bug. **Redact any personal preference values, usernames, or paths.**
+      render: terraform
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Run with `TF_LOG=DEBUG` and paste anything relevant — but redact any preference values, usernames, or paths you'd rather not share.
+      render: text
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Anything else
+      description: Recent changes, related issues, whatever helps.
