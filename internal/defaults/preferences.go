@@ -18,18 +18,9 @@ const systemGlobalFile = ".GlobalPreferences"
 // ones), but they can't be empty, can't start with '-' (defaults would read
 // them as a flag) and can't contain control characters.
 func IsSupportedKey(key string) bool {
-	if key == "" || strings.HasPrefix(key, "-") {
-		return false
-	}
-	if plistvalue.CheckXMLText(key) != nil {
-		return false
-	}
-	for _, r := range key {
-		if unicode.IsControl(r) {
-			return false
-		}
-	}
-	return true
+	return key != "" && !strings.HasPrefix(key, "-") &&
+		!strings.ContainsFunc(key, unicode.IsControl) &&
+		plistvalue.CheckXMLText(key) == nil
 }
 
 // target turns (scope, domain) into the defaults arguments that select it:

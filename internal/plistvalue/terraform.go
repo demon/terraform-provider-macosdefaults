@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"math/big"
 	"slices"
@@ -163,7 +164,7 @@ func fromAttributes(attrs map[string]attr.Value, override Kind, at string) (Valu
 		return Value{}, err
 	}
 	out := make(map[string]Value, len(attrs))
-	for _, k := range sortedKeys(attrs) {
+	for _, k := range slices.Sorted(maps.Keys(attrs)) {
 		if err := CheckXMLText(k); err != nil {
 			return Value{}, pathErr(at, fmt.Errorf("key %q: %w", k, err))
 		}
@@ -236,11 +237,8 @@ func toTF(v Value, at string) (attr.Value, error) {
 			elemTypes = append(elemTypes, tv.Type(context.Background()))
 			elems = append(elems, tv)
 		}
-		tuple, diags := types.TupleValue(elemTypes, elems)
-		if diags.HasError() {
-			return nil, pathErr(at, fmt.Errorf("building tuple: %v", diags))
-		}
-		return tuple, nil
+		// The types come from the values themselves, so they can't mismatch.
+		return types.TupleValueMust(elemTypes, elems), nil
 	case KindDict:
 		attrTypes := make(map[string]attr.Type, len(v.Dict))
 		attrs := make(map[string]attr.Value, len(v.Dict))
@@ -252,20 +250,7 @@ func toTF(v Value, at string) (attr.Value, error) {
 			attrTypes[k] = tv.Type(context.Background())
 			attrs[k] = tv
 		}
-		obj, diags := types.ObjectValue(attrTypes, attrs)
-		if diags.HasError() {
-			return nil, pathErr(at, fmt.Errorf("building object: %v", diags))
-		}
-		return obj, nil
+		return types.ObjectValueMust(attrTypes, attrs), nil
 	}
 	return nil, pathErr(at, fmt.Errorf("unknown kind %q", v.Kind))
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
 }

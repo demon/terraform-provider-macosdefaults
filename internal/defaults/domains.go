@@ -47,9 +47,8 @@ func (r *execRunner) systemDomains() ([]string, error) {
 		return nil, fmt.Errorf("listing %s: %w", SystemPreferencesDir, err)
 	}
 	var names []string
+
 	for _, e := range entries {
-		// Only regular files: skip directories, and symlinks, which could
-		// point anywhere.
 		if !e.Type().IsRegular() {
 			continue
 		}
@@ -105,12 +104,13 @@ func IsSupportedDomain(name string) bool {
 	}
 	for i, c := range name {
 		alnum := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+		underDash := c == '_' || c == '-'
 		switch {
 		case i == 0 && !alnum:
 			return false
-		case i == len(name)-1 && !alnum && c != '_' && c != '-':
+		case i == len(name)-1 && !alnum && !underDash:
 			return false
-		case !alnum && c != '.' && c != '_' && c != '-' && c != ' ':
+		case !alnum && c != '.' && !underDash && c != ' ':
 			return false
 		}
 	}

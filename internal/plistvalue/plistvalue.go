@@ -8,6 +8,7 @@ package plistvalue
 
 import (
 	"bytes"
+	"maps"
 	"math/big"
 	"slices"
 	"time"
@@ -75,20 +76,10 @@ func Date(t time.Time) Value {
 func Data(b []byte) Value { return Value{Kind: KindData, Data: b} }
 
 // Array returns an array value.
-func Array(vs ...Value) Value {
-	if vs == nil {
-		vs = []Value{}
-	}
-	return Value{Kind: KindArray, Array: vs}
-}
+func Array(vs ...Value) Value { return Value{Kind: KindArray, Array: vs} }
 
 // Dict returns a dict value.
-func Dict(m map[string]Value) Value {
-	if m == nil {
-		m = map[string]Value{}
-	}
-	return Value{Kind: KindDict, Dict: m}
-}
+func Dict(m map[string]Value) Value { return Value{Kind: KindDict, Dict: m} }
 
 // Equal reports whether a and b are the same preference value.
 //
@@ -116,16 +107,7 @@ func Equal(a, b Value) bool {
 	case KindArray:
 		return slices.EqualFunc(a.Array, b.Array, Equal)
 	case KindDict:
-		if len(a.Dict) != len(b.Dict) {
-			return false
-		}
-		for k, av := range a.Dict {
-			bv, ok := b.Dict[k]
-			if !ok || !Equal(av, bv) {
-				return false
-			}
-		}
-		return true
+		return maps.EqualFunc(a.Dict, b.Dict, Equal)
 	}
 	return false
 }

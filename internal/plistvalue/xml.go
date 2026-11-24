@@ -1,12 +1,15 @@
 package plistvalue
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +28,7 @@ const documentHeader = `<?xml version="1.0" encoding="UTF-8"?>
 // DecodeDocument parses a complete XML property list, as printed by
 // `defaults export <domain> -`, and returns its root value.
 func DecodeDocument(doc []byte) (Value, error) {
-	d := xml.NewDecoder(strings.NewReader(string(doc)))
+	d := xml.NewDecoder(bytes.NewReader(doc))
 	for {
 		tok, err := d.Token()
 		if err != nil {
@@ -266,9 +269,13 @@ func encode(b *strings.Builder, v Value) error {
 		if v.Int == nil {
 			return errors.New("plist: integer value has no number")
 		}
-		b.WriteString("<integer>" + v.Int.String() + "</integer>")
+		b.WriteString("<integer>")
+		b.WriteString(v.Int.String())
+		b.WriteString("</integer>")
 	case KindFloat:
-		b.WriteString("<real>" + strconv.FormatFloat(v.Float, 'g', -1, 64) + "</real>")
+		b.WriteString("<real>")
+		b.WriteString(strconv.FormatFloat(v.Float, 'g', -1, 64))
+		b.WriteString("</real>")
 	case KindBoolean:
 		if v.Bool {
 			b.WriteString("<true/>")
@@ -276,9 +283,13 @@ func encode(b *strings.Builder, v Value) error {
 			b.WriteString("<false/>")
 		}
 	case KindDate:
-		b.WriteString("<date>" + v.Date.UTC().Format(dateLayout) + "</date>")
+		b.WriteString("<date>")
+		b.WriteString(v.Date.UTC().Format(dateLayout))
+		b.WriteString("</date>")
 	case KindData:
-		b.WriteString("<data>" + base64.StdEncoding.EncodeToString(v.Data) + "</data>")
+		b.WriteString("<data>")
+		b.WriteString(base64.StdEncoding.EncodeToString(v.Data))
+		b.WriteString("</data>")
 	case KindArray:
 		b.WriteString("<array>")
 		for _, e := range v.Array {
@@ -289,7 +300,7 @@ func encode(b *strings.Builder, v Value) error {
 		b.WriteString("</array>")
 	case KindDict:
 		b.WriteString("<dict>")
-		for _, k := range sortedKeys(v.Dict) {
+		for _, k := range slices.Sorted(maps.Keys(v.Dict)) {
 			if err := encodeText(b, "key", k); err != nil {
 				return err
 			}
@@ -308,11 +319,15 @@ func encodeText(b *strings.Builder, tag, s string) error {
 	if err := CheckXMLText(s); err != nil {
 		return err
 	}
-	b.WriteString("<" + tag + ">")
+	b.WriteString("<")
+	b.WriteString(tag)
+	b.WriteString(">")
 	if err := xml.EscapeText(b, []byte(s)); err != nil {
 		return fmt.Errorf("plist: escaping <%s>: %w", tag, err)
 	}
-	b.WriteString("</" + tag + ">")
+	b.WriteString("</")
+	b.WriteString(tag)
+	b.WriteString(">")
 	return nil
 }
 
