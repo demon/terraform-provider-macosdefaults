@@ -42,6 +42,8 @@ hooks = [
         "go",
     ], pass_filenames = false },
     { id = "terraform-fmt", name = "terraform fmt", entry = "terraform fmt", language = "system", files = '\.tf$' },
+    # Also shellchecks `run:` scripts when shellcheck is on PATH.
+    { id = "actionlint", name = "actionlint", entry = "actionlint", language = "system", files = '^\.github/workflows/.*\.ya?ml$' },
     { id = "go-test", name = "go test (unit)", entry = "make test", language = "system", types = [
         "go",
     ], pass_filenames = false, stages = [
