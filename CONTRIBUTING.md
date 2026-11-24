@@ -7,6 +7,17 @@ PRs are welcome.
 You need Go (version in [`go.mod`](go.mod)), [`golangci-lint`](https://golangci-lint.run/), and
 `terraform` on your `PATH`. Acceptance tests also need a Mac.
 
+Install the Git hooks with [`prek`](https://prek.j178.dev) (`brew install prek`):
+
+```sh
+prek install
+```
+
+Commits then run the fast checks (`gofmt`, `golangci-lint`, `go mod tidy`, `terraform fmt`,
+whitespace and syntax checks) on the staged files. Pushes also run `make test` and check that
+`make generate` leaves `docs/` unchanged. Run everything by hand with
+`prek run --all-files --stage pre-push`. The config is in [`prek.toml`](prek.toml).
+
 ## Testing
 
 ```sh

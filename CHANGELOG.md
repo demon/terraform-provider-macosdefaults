@@ -9,3 +9,4 @@ Initial release.
   - `macosdefaults_domains` lists domains.
   - `macosdefaults_domain` reads a whole domain as native Terraform values, plus each key's plist type.
   - `macosdefaults_export` returns a domain's raw `defaults export` XML.
+- Contributor tooling: `prek` Git hooks (`prek.toml`) run formatting, lint and docs checks before commits and pushes.

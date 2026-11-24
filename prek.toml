@@ -1,0 +1,53 @@
+#:schema https://www.schemastore.org/prek.json
+# Git hooks for prek (https://prek.j178.dev). Set up once with `prek install`.
+
+# pre-commit runs the fast checks on staged files. pre-push runs the same slower checks CI does
+# (unit tests, docs regeneration), so a push that passes here shouldn't fail CI on them.
+
+default_install_hook_types = ["pre-commit", "pre-push"]
+default_stages = ["pre-commit"]
+
+[[repos]]
+repo = "builtin"
+hooks = [
+    { id = "check-yaml" },
+    { id = "check-json" },
+    { id = "check-toml" },
+    { id = "check-merge-conflict" },
+    { id = "check-case-conflict" },
+    { id = "check-added-large-files" },
+    { id = "check-executables-have-shebangs" },
+    { id = "check-shebang-scripts-are-executable" },
+    { id = "detect-private-key" },
+    { id = "deny-pattern", name = "os/exec only in internal/defaults", args = [
+        '"os/exec"',
+    ], files = '\.go$', exclude = '^internal/defaults/' },
+    { id = "end-of-file-fixer", exclude = '^docs/' },
+    { id = "mixed-line-ending", args = [
+        "--fix=lf",
+    ], exclude = '^docs/' },
+    { id = "trailing-whitespace", args = [
+        "--markdown-linebreak-ext=md",
+    ], exclude = '^docs/' },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+    { id = "gofmt", name = "gofmt", entry = "gofmt -s -l -w", language = "system", types = [
+        "go",
+    ] },
+    { id = "go-mod-tidy", name = "go mod tidy", entry = "go mod tidy -diff", language = "system", files = '(^|/)go\.(mod|sum)$|\.go$', pass_filenames = false },
+    { id = "golangci-lint", name = "golangci-lint", entry = "golangci-lint run", language = "system", types = [
+        "go",
+    ], pass_filenames = false },
+    { id = "terraform-fmt", name = "terraform fmt", entry = "terraform fmt", language = "system", files = '\.tf$' },
+    { id = "go-test", name = "go test (unit)", entry = "make test", language = "system", types = [
+        "go",
+    ], pass_filenames = false, stages = [
+        "pre-push",
+    ] },
+    { id = "docs-generated", name = "docs/ is up to date", entry = "sh -c 'make generate && git diff --exit-code -- docs/'", language = "system", files = '\.go$|^(docs|examples|templates)/|(^|/)go\.(mod|sum)$', pass_filenames = false, stages = [
+        "pre-push",
+    ] },
+]
